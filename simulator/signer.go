@@ -3,6 +3,7 @@ package simulator
 import (
 	"errors"
 	"net"
+	"os"
 	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -63,6 +64,9 @@ func NewClefDaemon(config *ClefConfig) (*ClefDaemon, error) {
 	// Generate domain specific keys
 	pwkey := crypto.Keccak256([]byte("credentials"), []byte(masterSeed))
 	jskey := crypto.Keccak256([]byte("jsstorage"), []byte(masterSeed))
+
+	// Make directory
+	os.MkdirAll(vaultLocation, 0777)
 
 	// Initialize the encrypted storages
 	pwStorage := storage.NewAESEncryptedStorage(filepath.Join(vaultLocation, "credentials.json"), pwkey)

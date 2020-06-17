@@ -62,6 +62,7 @@ func main() {
 	// Create LES cluster
 	cluster, err := simulator.NewCluster(&simulator.ClusterConfig{
 		Adapter: "sim",
+		ChainID: 1337,
 		ClientConfig: []*simulator.ClientServiceConfig{
 			{
 				ServicePay:      true,

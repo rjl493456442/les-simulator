@@ -104,12 +104,19 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 	if config.Blocks > 0 {
 		sim := backends.NewSimulatedBackendWithDatabase(db, gspec.Alloc, 100000000)
 		blocks, _ = core.GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, config.Blocks, func(i int, gen *core.BlockGen) {
+			var tx *types.Transaction
 			switch {
 			case i == 1 && config.DeployOracleContract:
 				// deploy checkpoint contract
-				oracleAddr, _, _, _ = oracle.DeployCheckpointOracle(bind.NewKeyedTransactor(masterKey), sim, []common.Address{masterAddr}, big.NewInt(128), big.NewInt(1), big.NewInt(1))
+				opt := bind.NewKeyedTransactor(masterKey)
+				opt.GasPrice = big.NewInt(2 * params.GWei)
+				oracleAddr, tx, _, _ = oracle.DeployCheckpointOracle(opt, sim, []common.Address{masterAddr}, big.NewInt(128), big.NewInt(1), big.NewInt(1))
+				gen.AddTx(tx)
 			case i == 2 && config.DeployPaymentContract:
-				lotteryAddr, _, _, _ = lottery.DeployLotteryBook(bind.NewKeyedTransactor(masterKey), sim)
+				opt := bind.NewKeyedTransactor(masterKey)
+				opt.GasPrice = big.NewInt(2 * params.GWei)
+				lotteryAddr, tx, _, _ = lottery.DeployLotteryBook(opt, sim)
+				gen.AddTx(tx)
 			default:
 			}
 			sim.Commit()

@@ -116,6 +116,7 @@ func NewLesServerService(cfg *ServerServiceConfig, bcfg *BlockchainConfig, minin
 
 		// If mining is required, start it
 		if mining {
+			eth.Miner().DisablePreseal()
 			eth.StartMining(1)
 		}
 		return eth, nil
