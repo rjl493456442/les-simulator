@@ -44,8 +44,7 @@ func NewLesClientService(cfg *ClientServiceConfig, bcfg *BlockchainConfig, signe
 
 		// Add more customized configs
 		if cfg != nil {
-			config.LightServicePay = cfg.ServicePay
-			config.LightAddress = cfg.PaymentAddress
+			config.LotteryPaymentAddress = cfg.PaymentAddress
 			config.UltraLightServers = cfg.TrustedServers
 			config.UltraLightFraction = cfg.TrustedFraction
 		}
@@ -92,8 +91,7 @@ func NewLesServerService(cfg *ServerServiceConfig, bcfg *BlockchainConfig, minin
 
 		// Add more customized configs
 		if cfg != nil {
-			config.LightServiceCharge = cfg.ServiceCharge
-			config.LightAddress = cfg.PaymentAddress
+			config.LotteryPaymentAddress = cfg.PaymentAddress
 			config.LightServ = cfg.LightServ
 			config.LightPeers = cfg.LightPeers
 		}
