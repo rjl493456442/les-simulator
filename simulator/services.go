@@ -1,8 +1,6 @@
 package simulator
 
 import (
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/external"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
@@ -28,16 +26,10 @@ type ClientServiceConfig struct {
 	TrustedFraction int
 }
 
-func NewLesClientService(cfg *ClientServiceConfig, bcfg *BlockchainConfig, signer string) func(ctx *adapters.ServiceContext) (node.Service, error) {
-	return func(ctx *adapters.ServiceContext) (service node.Service, e error) {
+func NewLesClientService(cfg *ClientServiceConfig, bcfg *BlockchainConfig) func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
+	return func(ctx *adapters.ServiceContext, stack *node.Node) (service node.Lifecycle, e error) {
 		// Using in-memory temporary database.
 		ctx.Config.DataDir = ""
-		backend, err := external.NewExternalBackend(signer)
-		if err != nil {
-			return nil, err
-		}
-		ctx.NodeContext.AccountManager = accounts.NewManager(&accounts.Config{}, backend)
-
 		config := eth.DefaultConfig
 		config.SyncMode = downloader.LightSync
 		config.Ethash.PowMode = ethash.ModeFake
@@ -51,7 +43,7 @@ func NewLesClientService(cfg *ClientServiceConfig, bcfg *BlockchainConfig, signe
 		if bcfg != nil && bcfg.Genesis != nil {
 			config.Genesis = bcfg.Genesis
 		}
-		les, err := les.New(ctx.NodeContext, &config)
+		les, err := les.New(stack, &config)
 		if err != nil {
 			return nil, err
 		}
@@ -74,16 +66,10 @@ type ServerServiceConfig struct {
 	LightPeers     int
 }
 
-func NewLesServerService(cfg *ServerServiceConfig, bcfg *BlockchainConfig, mining bool, signer string) func(ctx *adapters.ServiceContext) (node.Service, error) {
-	return func(ctx *adapters.ServiceContext) (service node.Service, e error) {
+func NewLesServerService(cfg *ServerServiceConfig, bcfg *BlockchainConfig, mining bool) func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
+	return func(ctx *adapters.ServiceContext, stack *node.Node) (service node.Lifecycle, e error) {
 		// Using in-memory temporary database.
 		ctx.Config.DataDir = ""
-		backend, err := external.NewExternalBackend(signer)
-		if err != nil {
-			return nil, err
-		}
-		ctx.NodeContext.AccountManager = accounts.NewManager(&accounts.Config{}, backend)
-
 		config := eth.DefaultConfig
 		config.SyncMode = downloader.FullSync
 		config.Ethash.PowMode = ethash.ModeFake
@@ -98,7 +84,7 @@ func NewLesServerService(cfg *ServerServiceConfig, bcfg *BlockchainConfig, minin
 		if bcfg != nil && bcfg.Genesis != nil {
 			config.Genesis = bcfg.Genesis
 		}
-		eth, err := eth.New(ctx.NodeContext, &config)
+		eth, err := eth.New(stack, &config)
 		if err != nil {
 			return nil, err
 		}
@@ -106,12 +92,10 @@ func NewLesServerService(cfg *ServerServiceConfig, bcfg *BlockchainConfig, minin
 		if bcfg != nil && len(bcfg.Chain) > 0 {
 			eth.BlockChain().InsertChain(bcfg.Chain)
 		}
-		server, err := les.NewLesServer(ctx.NodeContext, eth, &config)
+		_, err = les.NewLesServer(stack, eth, &config)
 		if err != nil {
 			return nil, err
 		}
-		eth.AddLesServer(server)
-
 		// If mining is required, start it
 		if mining {
 			eth.Miner().DisablePreseal()

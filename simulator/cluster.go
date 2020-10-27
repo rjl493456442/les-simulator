@@ -18,9 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/les"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/simulations"
 	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
 	"github.com/ethereum/go-ethereum/params"
@@ -79,7 +77,7 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 		gspec = core.Genesis{
 			Config:     params.AllEthashProtocolChanges,
 			GasLimit:   4700000,
-			Difficulty: big.NewInt(524288),
+			Difficulty: big.NewInt(5242880),
 		}
 		masterKey, _ = crypto.GenerateKey()
 		masterAddr   = crypto.PubkeyToAddress(masterKey.PublicKey)
@@ -126,9 +124,9 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 		Genesis: &gspec,
 		Chain:   blocks,
 	}
-	// Gather all services
+	// Register all services
 	var (
-		services = map[string]adapters.ServiceFunc{}
+		services = make(map[string]adapters.LifecycleConstructor)
 
 		serverDaemons []*ClefDaemon
 		clientDaemons []*ClefDaemon
@@ -150,7 +148,7 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 			return nil, err
 		}
 		serverDaemons = append(serverDaemons, d)
-		services[fmt.Sprintf("les-server-%d", index)] = NewLesServerService(server, bcfg, index == 0, d.RPCURL())
+		services[fmt.Sprintf("les-server-%d", index)] = NewLesServerService(server, bcfg, index == 0)
 	}
 	for index, client := range config.ClientConfig {
 		// Initialize signing daemon if required
@@ -169,7 +167,7 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 			return nil, err
 		}
 		clientDaemons = append(clientDaemons, d)
-		services[fmt.Sprintf("les-client-%d", index)] = NewLesClientService(client, bcfg, d.RPCURL())
+		services[fmt.Sprintf("les-client-%d", index)] = NewLesClientService(client, bcfg)
 	}
 	adapter, err := NewAdapter(config.Adapter, services)
 	if err != nil {
@@ -186,8 +184,9 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 	// Initialize all nodes
 	for index := range config.ServerConfig {
 		cfg := adapters.RandomNodeConfig()
-		cfg.Services = []string{fmt.Sprintf("les-server-%d", index)}
+		cfg.Lifecycles = []string{fmt.Sprintf("les-server-%d", index)}
 		cfg.Properties = []string{"server"}
+		cfg.ExternalSigner = serverDaemons[index].RPCURL()
 		server, err := net.NewNodeWithConfig(cfg)
 		if err != nil {
 			return nil, err
@@ -196,8 +195,9 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 	}
 	for index := range config.ClientConfig {
 		cfg := adapters.RandomNodeConfig()
-		cfg.Services = []string{fmt.Sprintf("les-client-%d", index)}
+		cfg.Lifecycles = []string{fmt.Sprintf("les-client-%d", index)}
 		cfg.Properties = []string{"client"}
+		cfg.ExternalSigner = clientDaemons[index].RPCURL()
 		client, err := net.NewNodeWithConfig(cfg)
 		if err != nil {
 			return nil, err
@@ -222,32 +222,14 @@ func (cluster *Cluster) StartNodes() error {
 	cluster.lock.Lock()
 	defer cluster.lock.Unlock()
 
-	for index, server := range cluster.servers {
+	for _, server := range cluster.servers {
 		cluster.network.Start(server.node.ID())
-		if simnode, ok := server.node.Node.(*adapters.SimNode); ok {
-			service := simnode.Service(fmt.Sprintf("les-server-%d", index))
-			ethService := service.(*eth.Ethereum)
-
-			rpcClient, err := simnode.Client()
-			if err != nil {
-				continue
-			}
-			ethService.SetBackends(ethclient.NewClient(rpcClient), ethclient.NewClient(rpcClient))
-		}
 	}
-	for index, client := range cluster.clients {
+	log.Info("Started all servers")
+	for _, client := range cluster.clients {
 		cluster.network.Start(client.node.ID())
-		if simnode, ok := client.node.Node.(*adapters.SimNode); ok {
-			service := simnode.Service(fmt.Sprintf("les-client-%d", index))
-			lesService := service.(*les.LightEthereum)
-
-			rpcClient, err := simnode.Client()
-			if err != nil {
-				continue
-			}
-			lesService.SetBackends(ethclient.NewClient(rpcClient), ethclient.NewClient(rpcClient))
-		}
 	}
+	log.Info("Started all clients")
 	return nil
 }
 
@@ -275,6 +257,7 @@ func (cluster *Cluster) Connect() error {
 		for _, client := range cluster.clients {
 			for _, server := range cluster.servers {
 				if err := cluster.network.Connect(client.node.ID(), server.node.ID()); err != nil {
+					log.Error("Failed to establish the connection", "from", client.node.ID(), "to", server.node.ID(), "error", err)
 					return err
 				}
 			}
@@ -346,7 +329,7 @@ func (cluster *Cluster) Network() *simulations.Network {
 	return cluster.network
 }
 
-func NewAdapter(typ string, services adapters.Services) (adapters.NodeAdapter, error) {
+func NewAdapter(typ string, services adapters.LifecycleConstructors) (adapters.NodeAdapter, error) {
 	switch typ {
 	case "sim":
 		return adapters.NewSimAdapter(services), nil
