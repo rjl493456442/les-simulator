@@ -65,7 +65,6 @@ func main() {
 		ChainID: 1337,
 		ClientConfig: []*simulator.ClientServiceConfig{
 			{
-				ServicePay:      true,
 				PaymentAddress:  accounts[0],
 				TrustedServers:  nil,
 				TrustedFraction: 0,
@@ -73,7 +72,6 @@ func main() {
 		},
 		ServerConfig: []*simulator.ServerServiceConfig{
 			{
-				ServiceCharge:  true,
 				PaymentAddress: accounts[1],
 				LightServ:      100,
 				LightPeers:     50,
@@ -85,6 +83,7 @@ func main() {
 		Prefunds:              prefunds,
 		Conns:                 nil,
 		KeystorePath:          keystorePath,
+		ClefEnabled:           true,
 		SigningRule:           signingRules,
 	})
 	if err != nil {
@@ -170,4 +169,3 @@ function ApproveSignData(r) {
 function OnSignerStartup(i) {
     return "Approve"
 }`)
-

@@ -52,9 +52,17 @@ type ClusterConfig struct {
 	DeployOracleContract  bool // Whether deploy checkpoint oracle contract in blockchain
 	Prefunds              map[common.Address]*big.Int
 
-	// Additional services
+	// Account management configs
+	// KeystorePath is the path points to the keystore
 	KeystorePath string
-	SigningRule  []byte
+
+	// ClefEnabled is the flag whether to enable external signer clef for
+	// managing the user accounts.
+	ClefEnabled bool
+
+	// SigningRule is the rule for clef. It's only meaningful when `ClefEnabled`
+	// is true.
+	SigningRule []byte
 }
 
 type Cluster struct {
@@ -132,41 +140,45 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 		clientDaemons []*ClefDaemon
 	)
 	for index, server := range config.ServerConfig {
-		// Initialize signing daemon if required
-		clefPath, err := ioutil.TempDir("", fmt.Sprintf("server-clef-%d", index))
-		if err != nil {
-			return nil, err
+		// Initialize clef daemon for each node if it's enabled.
+		if config.ClefEnabled {
+			clefPath, err := ioutil.TempDir("", fmt.Sprintf("server-clef-%d", index))
+			if err != nil {
+				return nil, err
+			}
+			d, err := NewClefDaemon(&ClefConfig{
+				Dir:      clefPath,
+				Keystore: config.KeystorePath,
+				ChainID:  config.ChainID,
+				Rules:    config.SigningRule,
+				Accounts: map[common.Address]string{server.PaymentAddress: ""},
+			})
+			if err != nil {
+				return nil, err
+			}
+			serverDaemons = append(serverDaemons, d)
 		}
-		d, err := NewClefDaemon(&ClefConfig{
-			Dir:      clefPath,
-			Keystore: config.KeystorePath,
-			ChainID:  config.ChainID,
-			Rules:    config.SigningRule,
-			Accounts: map[common.Address]string{server.PaymentAddress: ""},
-		})
-		if err != nil {
-			return nil, err
-		}
-		serverDaemons = append(serverDaemons, d)
 		services[fmt.Sprintf("les-server-%d", index)] = NewLesServerService(server, bcfg, index == 0)
 	}
 	for index, client := range config.ClientConfig {
-		// Initialize signing daemon if required
-		clefPath, err := ioutil.TempDir("", fmt.Sprintf("client-clef-%d", index))
-		if err != nil {
-			return nil, err
+		if config.ClefEnabled {
+			// Initialize clef daemon for each node if it's enabled.
+			clefPath, err := ioutil.TempDir("", fmt.Sprintf("client-clef-%d", index))
+			if err != nil {
+				return nil, err
+			}
+			d, err := NewClefDaemon(&ClefConfig{
+				Dir:      clefPath,
+				Keystore: config.KeystorePath,
+				ChainID:  config.ChainID,
+				Rules:    config.SigningRule,
+				Accounts: map[common.Address]string{client.PaymentAddress: ""},
+			})
+			if err != nil {
+				return nil, err
+			}
+			clientDaemons = append(clientDaemons, d)
 		}
-		d, err := NewClefDaemon(&ClefConfig{
-			Dir:      clefPath,
-			Keystore: config.KeystorePath,
-			ChainID:  config.ChainID,
-			Rules:    config.SigningRule,
-			Accounts: map[common.Address]string{client.PaymentAddress: ""},
-		})
-		if err != nil {
-			return nil, err
-		}
-		clientDaemons = append(clientDaemons, d)
 		services[fmt.Sprintf("les-client-%d", index)] = NewLesClientService(client, bcfg)
 	}
 	adapter, err := NewAdapter(config.Adapter, services)
@@ -186,23 +198,33 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 		cfg := adapters.RandomNodeConfig()
 		cfg.Lifecycles = []string{fmt.Sprintf("les-server-%d", index)}
 		cfg.Properties = []string{"server"}
-		cfg.ExternalSigner = serverDaemons[index].RPCURL()
+
+		var signer *ClefDaemon
+		if config.ClefEnabled {
+			signer = serverDaemons[index]
+			cfg.ExternalSigner = serverDaemons[index].RPCURL()
+		}
 		server, err := net.NewNodeWithConfig(cfg)
 		if err != nil {
 			return nil, err
 		}
-		cluster.servers = append(cluster.servers, &LesServer{node: server, signer: serverDaemons[index]})
+		cluster.servers = append(cluster.servers, &LesServer{node: server, signer: signer})
 	}
 	for index := range config.ClientConfig {
 		cfg := adapters.RandomNodeConfig()
 		cfg.Lifecycles = []string{fmt.Sprintf("les-client-%d", index)}
 		cfg.Properties = []string{"client"}
-		cfg.ExternalSigner = clientDaemons[index].RPCURL()
+
+		var signer *ClefDaemon
+		if config.ClefEnabled {
+			signer = serverDaemons[index]
+			cfg.ExternalSigner = clientDaemons[index].RPCURL()
+		}
 		client, err := net.NewNodeWithConfig(cfg)
 		if err != nil {
 			return nil, err
 		}
-		cluster.clients = append(cluster.clients, &LesClient{node: client, signer: clientDaemons[index]})
+		cluster.clients = append(cluster.clients, &LesClient{node: client, signer: signer})
 	}
 	// Register system level contracts
 	if lotteryAddr != (common.Address{}) {
@@ -239,11 +261,15 @@ func (cluster *Cluster) StopNodes() error {
 
 	for _, server := range cluster.servers {
 		cluster.network.Stop(server.node.ID())
-		server.signer.Stop()
+		if server.signer != nil {
+			server.signer.Stop()
+		}
 	}
 	for _, client := range cluster.clients {
 		cluster.network.Stop(client.node.ID())
-		client.signer.Stop()
+		if client.signer != nil {
+			client.signer.Stop()
+		}
 	}
 	return nil
 }

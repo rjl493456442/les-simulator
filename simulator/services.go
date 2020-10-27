@@ -20,10 +20,26 @@ type BlockchainConfig struct {
 
 type ClientServiceConfig struct {
 	// LES settings
-	ServicePay      bool
-	PaymentAddress  common.Address
-	TrustedServers  []string
+
+	// PaymentAddress is the client's address for paying the fee by
+	// **lottery payment**.
+	//
+	// The default is empty, which means the lottery payment is disabled.
+	PaymentAddress common.Address
+
+	// TrustedServers is the list of trusted ultra light servers.
+	//
+	// The default value is empty, which means no trusted server will be
+	// picked.
+	TrustedServers []string
+
+	// TrustedFraction is the percentage of trusted servers to accept an
+	// announcement. It's only meaningful when `TrustedServers` is not empty.
 	TrustedFraction int
+
+	// ClefEnabled is the flag whether to enable external signer clef for
+	// managing the user accounts.
+	ClefEnabled bool
 }
 
 func NewLesClientService(cfg *ClientServiceConfig, bcfg *BlockchainConfig) func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
@@ -60,10 +76,21 @@ func NewLesClientService(cfg *ClientServiceConfig, bcfg *BlockchainConfig) func(
 }
 
 type ServerServiceConfig struct {
-	ServiceCharge  bool
+	// PaymentAddress is the server's address for charging the fee by
+	// **lottery payment**.
+	//
+	// The default is empty, which means the lottery payment is disabled.
 	PaymentAddress common.Address
-	LightServ      int
-	LightPeers     int
+
+	// LightServ is the maximum percentage of time allowed for serving
+	// LES requests.
+	//
+	// Positive value is expected, otherwise the LES server functionality
+	// is disabled.
+	LightServ int
+
+	// LightPeers is the maximum number of LES client peers.
+	LightPeers int
 }
 
 func NewLesServerService(cfg *ServerServiceConfig, bcfg *BlockchainConfig, mining bool) func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
