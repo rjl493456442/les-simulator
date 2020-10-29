@@ -280,12 +280,13 @@ func (cluster *Cluster) Connect() error {
 
 	if cluster.config.Conns == nil {
 		// Connect each client to all servers.
-		for _, client := range cluster.clients {
-			for _, server := range cluster.servers {
+		for cid, client := range cluster.clients {
+			for sid, server := range cluster.servers {
 				if err := cluster.network.Connect(client.node.ID(), server.node.ID()); err != nil {
 					log.Error("Failed to establish the connection", "from", client.node.ID(), "to", server.node.ID(), "error", err)
 					return err
 				}
+				log.Info("Setup the connection", "client", cid, "server", sid)
 			}
 		}
 	} else {
@@ -300,6 +301,7 @@ func (cluster *Cluster) Connect() error {
 			if err := cluster.network.Connect(cluster.clients[conn.From].node.ID(), cluster.servers[conn.To].node.ID()); err != nil {
 				return err
 			}
+			log.Info("Setup the connection", "client", conn.From, "server", conn.To)
 		}
 	}
 	// Connect servers together
@@ -308,6 +310,7 @@ func (cluster *Cluster) Connect() error {
 			if err := cluster.network.Connect(cluster.servers[i].node.ID(), cluster.servers[j].node.ID()); err != nil {
 				return err
 			}
+			log.Info("Setup the server-to-server connection", "from", i, "to", j)
 		}
 	}
 	return nil
