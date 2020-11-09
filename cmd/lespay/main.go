@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	loglevel = flag.Int("loglevel", 5, "verbosity of logs")
+	loglevel = flag.Int("loglevel", 3, "verbosity of logs")
 )
 
 // main() starts a simulation network which contains nodes running a simple
