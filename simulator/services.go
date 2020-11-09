@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/les"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
 )
@@ -40,6 +41,17 @@ type ClientServiceConfig struct {
 	// ClefEnabled is the flag whether to enable external signer clef for
 	// managing the user accounts.
 	ClefEnabled bool
+
+	// LogFile is the log file name of the p2p node at runtime.
+	//
+	// The default value is empty so that the default log writer
+	// is the system standard output.
+	LogFile string
+
+	// LogVerbosity is the log verbosity of the p2p node at runtime.
+	//
+	// The default verbosity is INFO.
+	LogVerbosity log.Lvl
 }
 
 func NewLesClientService(cfg *ClientServiceConfig, bcfg *BlockchainConfig) func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
@@ -91,6 +103,17 @@ type ServerServiceConfig struct {
 
 	// LightPeers is the maximum number of LES client peers.
 	LightPeers int
+
+	// LogFile is the log file name of the p2p node at runtime.
+	//
+	// The default value is empty so that the default log writer
+	// is the system standard output.
+	LogFile string
+
+	// LogVerbosity is the log verbosity of the p2p node at runtime.
+	//
+	// The default verbosity is INFO.
+	LogVerbosity log.Lvl
 }
 
 func NewLesServerService(cfg *ServerServiceConfig, bcfg *BlockchainConfig, mining bool) func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {

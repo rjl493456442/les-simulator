@@ -24,6 +24,9 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+// Pre-generated keys for deterministic setup
+var masterKeyPrivate = "ab2f8cb941579e8b7336fd7e084e047e0f985b14f85485af37989487798403e8"
+
 type LesServer struct {
 	node   *simulations.Node
 	signer *ClefDaemon
@@ -87,7 +90,7 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 			GasLimit:   4700000,
 			Difficulty: big.NewInt(5242880),
 		}
-		masterKey, _ = crypto.GenerateKey()
+		masterKey, _ = crypto.ToECDSA(common.Hex2Bytes(masterKeyPrivate))
 		masterAddr   = crypto.PubkeyToAddress(masterKey.PublicKey)
 	)
 	gspec.Alloc = make(core.GenesisAlloc)
@@ -181,6 +184,9 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 		}
 		services[fmt.Sprintf("les-client-%d", index)] = NewLesClientService(client, bcfg)
 	}
+	// It's necessary to register all the life cycles in order to use exec adapter
+	adapters.RegisterLifecycles(services)
+
 	adapter, err := NewAdapter(config.Adapter, services)
 	if err != nil {
 		return nil, err
@@ -198,6 +204,8 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 		cfg := adapters.RandomNodeConfig()
 		cfg.Lifecycles = []string{fmt.Sprintf("les-server-%d", index)}
 		cfg.Properties = []string{"server"}
+		cfg.LogFile = config.ServerConfig[index].LogFile
+		cfg.LogVerbosity = config.ServerConfig[index].LogVerbosity
 
 		var signer *ClefDaemon
 		if config.ClefEnabled {
@@ -214,6 +222,8 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 		cfg := adapters.RandomNodeConfig()
 		cfg.Lifecycles = []string{fmt.Sprintf("les-client-%d", index)}
 		cfg.Properties = []string{"client"}
+		cfg.LogFile = config.ClientConfig[index].LogFile
+		cfg.LogVerbosity = config.ClientConfig[index].LogVerbosity
 
 		var signer *ClefDaemon
 		if config.ClefEnabled {
@@ -362,6 +372,9 @@ func NewAdapter(typ string, services adapters.LifecycleConstructors) (adapters.N
 	switch typ {
 	case "sim":
 		return adapters.NewSimAdapter(services), nil
+	case "exec":
+		tmpdir, _ := ioutil.TempDir("", "")
+		return adapters.NewExecAdapter(tmpdir), nil
 	default:
 		return nil, errors.New("invalid adapter")
 	}

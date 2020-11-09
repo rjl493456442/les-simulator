@@ -51,7 +51,7 @@ func main() {
 	for i := 0; i < *servers; i++ {
 		serverConfigs = append(serverConfigs, &simulator.ServerServiceConfig{
 			LightServ:  100,
-			LightPeers: 50,
+			LightPeers: 30,
 		})
 	}
 	for i := 0; i < *clients; i++ {

@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	loglevel = flag.Int("loglevel", 5, "verbosity of logs")
+	loglevel = flag.Int("loglevel", 3, "verbosity of logs")
 )
 
 // main() starts a simulation network which contains nodes running a simple
@@ -39,13 +39,22 @@ func main() {
 
 	// Create LES cluster
 	cluster, err := simulator.NewCluster(&simulator.ClusterConfig{
-		Adapter:      "sim",
-		ChainID:      1337,
-		ClientConfig: []*simulator.ClientServiceConfig{{TrustedServers: nil, TrustedFraction: 0}},
+		Adapter: "exec",
+		ChainID: 1337,
+		ClientConfig: []*simulator.ClientServiceConfig{
+			{
+				TrustedServers:  nil,
+				TrustedFraction: 0,
+				LogFile:         "client-01.log",
+				LogVerbosity:    log.LvlInfo,
+			},
+		},
 		ServerConfig: []*simulator.ServerServiceConfig{
 			{
-				LightServ:  100,
-				LightPeers: 50,
+				LightServ:    100,
+				LightPeers:   30,
+				LogFile:      "server-01.log",
+				LogVerbosity: log.LvlInfo,
 			},
 		},
 		Blocks:                10,

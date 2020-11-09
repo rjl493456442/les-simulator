@@ -74,7 +74,7 @@ func main() {
 			{
 				PaymentAddress: accounts[1],
 				LightServ:      100,
-				LightPeers:     50,
+				LightPeers:     30,
 			},
 		},
 		Blocks:                10,
