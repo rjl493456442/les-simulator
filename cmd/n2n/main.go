@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net/http"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -27,7 +28,7 @@ import (
 )
 
 var (
-	loglevel = flag.Int("loglevel", 5, "verbosity of logs")
+	loglevel = flag.Int("loglevel", 3, "verbosity of logs")
 	servers  = flag.Int("servers", 10, "the number of les servers to be created")
 	clients  = flag.Int("clients", 10, "the number of les clients to be created")
 	routes   = flag.String("routes", "", "the network topology to be created, separated by comma(e.g. c1->s2,c2->s1,c3->*,*->s4)")
@@ -50,19 +51,26 @@ func main() {
 	)
 	for i := 0; i < *servers; i++ {
 		serverConfigs = append(serverConfigs, &simulator.ServerServiceConfig{
-			LightServ:  100,
-			LightPeers: 30,
+			LightServ:    100,
+			LightPeers:   30,
+			LogFile:      fmt.Sprintf("server-%02d.log", i),
+			LogVerbosity: log.LvlInfo,
 		})
 	}
 	for i := 0; i < *clients; i++ {
-		clientConfigs = append(clientConfigs, &simulator.ClientServiceConfig{TrustedServers: nil, TrustedFraction: 0})
+		clientConfigs = append(clientConfigs, &simulator.ClientServiceConfig{
+			TrustedServers:  nil,
+			TrustedFraction: 0,
+			LogFile:         fmt.Sprintf("client-%02d.log", i),
+			LogVerbosity:    log.LvlInfo,
+		})
 	}
 	if *routes != "" {
 		conns = simulator.ParseTopology(*routes, *clients, *servers)
 	}
 	// Create LES cluster
 	cluster, err := simulator.NewCluster(&simulator.ClusterConfig{
-		Adapter:               "sim",
+		Adapter:               "exec",
 		ChainID:               1337,
 		ClientConfig:          clientConfigs,
 		ServerConfig:          serverConfigs,
